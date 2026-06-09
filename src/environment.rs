@@ -53,14 +53,13 @@ impl<'src> Environment<'src> {
     }
   }
 
-  pub(crate) fn call_function(
+  pub(crate) fn function(
     &self,
     name: &str,
-    arguments: Vec<Value<'src>>,
     span: Span,
-  ) -> Result<Value<'src>, Error> {
+  ) -> Result<Function<'src>, Error> {
     match self.resolve_function(name) {
-      Some(function) => function.call(arguments, self.config, span),
+      Some(function) => Ok(function),
       None if self.resolve_symbol(name).is_some() => {
         Err(Error::new(span, format!("`{name}` is not a function")))
       }
@@ -105,10 +104,13 @@ impl<'src> Environment<'src> {
         Builtin::Constant { value, .. } => {
           environment.add_symbol(builtin.name(), Value::Number(value(config)));
         }
-        Builtin::Function { function, .. } => {
+        Builtin::Function {
+          arity, function, ..
+        } => {
           environment.add_function(
             builtin.name(),
             Function::Builtin {
+              arity: *arity,
               function: *function,
               name: builtin.name(),
             },

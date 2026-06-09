@@ -74,7 +74,7 @@ Arguments:
   [FILENAME]  File to evaluate
 
 Options:
-      --digits <DIGITS>                Decimal digits to display for approximate numbers [default: 16]
+  -d, --digits <DIGITS>                Decimal digits to display for approximate numbers [default: 16]
   -e, --expression <EXPRESSION>        Expression to evaluate
   -l, --load <LOAD>                    Load files before entering the REPL
   -p, --precision <PRECISION>          Binary precision (bits) to use for calculations [default: 1024]
@@ -124,7 +124,7 @@ program. The tool supports executing arbitrary expressions inline using the
 
 ```bash
 val -p 53 -e 'sin(2) * e ^ pi * cos(sum([1, 2, 3]))'
-20.203684508229124193
+20.20368450822912
 ```
 
 **n.b.** The `--expression` option and `filename` argument are mutually
@@ -182,7 +182,8 @@ complex operations:
 |                | Less Than or Equal    | `a <= b`                      | `i <= 5`                             |
 |                | Greater Than          | `a > b`                       | `count > 0`                          |
 |                | Greater Than or Equal | `a >= b`                      | `value >= 100`                       |
-| **Other**      | Function Call         | `function(args)`              | `sin(x)`                             |
+| **Other**      | Function Call         | `function(args)`              | `make_adder(2)(3)`                   |
+|                | Function Literal      | `fn(args) { ... }`            | `fn(x) { return x + 1 }`             |
 |                | List Indexing         | `list[index]`                 | `numbers[0]`                         |
 |                | List Creation         | `[item1, item2, ...]`         | `[1, 2, 3]`                          |
 |                | List Concatenation    | `list1 + list2`               | `[1, 2] + [3, 4]`                    |
@@ -200,20 +201,20 @@ Numeric values are represented exactly as rational numbers where possible, using
 Approximate math, such as trigonometric functions, logarithms, exponentials, and
 constants like `pi`, uses [`rug::Float`](https://docs.rs/rug/latest/rug/struct.Float.html):
 
-```rust
+```console
 > pi
 3.141592653589793
 > e
 2.718281828459045
 > sin(2) * e ^ pi * cos(sum([1, 2, 3]))
-16.48145579391288
+20.20368450822912
 >
 ```
 
 You can specify the rounding mode and binary precision used for approximate
 calculations with `--rounding-mode` and `--precision`. `--precision` controls
-binary precision, measured in bits. Use `--digits` to control how many decimal
-digits are displayed for approximate numbers.
+binary precision, measured in bits. Use `--digits` or `-d` to control how many
+decimal digits are displayed for approximate numbers.
 
 #### Boolean
 
@@ -253,7 +254,8 @@ combined = numbers + [6, 7]
 #### Function
 
 A function is a value, and can be used in assignments, passed around to other
-functions, etc.
+functions, returned from functions, and called from any expression that
+evaluates to a function.
 
 Check out the [higher order functions example](https://github.com/terror/val/blob/master/examples/hof.val)
 for how this works.
@@ -276,6 +278,18 @@ fn sum(a, b) {
 l = [1, 2, 3, 4, 5]
 
 println(reduce(l, sum, 0))
+```
+
+Anonymous functions use the same block body syntax:
+
+```rust
+fn apply(x, f) {
+  return f(x)
+}
+
+println(apply(2, fn(x) {
+  return x * 3
+}))
 ```
 
 #### Null

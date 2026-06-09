@@ -276,16 +276,37 @@ impl<'a> Evaluator<'a> {
         ),
       )),
       Expression::Boolean(boolean) => Ok(Value::Boolean(*boolean)),
-      Expression::FunctionCall(name, arguments) => {
+      Expression::Function(parameters, body) => {
+        Ok(Value::Function(Function::UserDefined {
+          body: body.clone(),
+          environment: self.environment.clone(),
+          name: None,
+          parameters: parameters.clone(),
+        }))
+      }
+      Expression::FunctionCall(function, arguments) => {
+        let function = match &function.0 {
+          Expression::Identifier(name) => {
+            self.environment.function(name, *span)
+          }
+          _ => match self.evaluate_expression(function)? {
+            Value::Function(function) => Ok(function),
+            value => Err(Error::new(
+              function.1,
+              format!("'{value}' is not a function"),
+            )),
+          },
+        }?;
+
+        function.check_arity(arguments.len(), *span)?;
+
         let mut evaluated_arguments = Vec::with_capacity(arguments.len());
 
         for argument in arguments {
           evaluated_arguments.push(self.evaluate_expression(argument)?);
         }
 
-        self
-          .environment
-          .call_function(name, evaluated_arguments, *span)
+        function.call(evaluated_arguments, self.environment.config, *span)
       }
       Expression::Identifier(name) => {
         match self.environment.resolve_symbol(name) {
@@ -415,7 +436,7 @@ impl<'a> Evaluator<'a> {
         let function = Function::UserDefined {
           body: body.clone(),
           environment: self.environment.clone(),
-          name,
+          name: Some(name),
           parameters: params.clone(),
         };
 

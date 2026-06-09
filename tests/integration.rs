@@ -574,6 +574,32 @@ fn call_builtin_function() -> Result {
 }
 
 #[test]
+fn callee_expression_is_checked_before_arguments() -> Result {
+  Test::new()?
+    .program("['foo'][0](println('bar'))")
+    .expected_status(1)
+    .expected_stdout(Empty)
+    .expected_stderr(Contains("'foo' is not a function"))
+    .run()
+}
+
+#[test]
+fn callee_identifier_is_checked_before_arguments() -> Result {
+  Test::new()?
+    .program(indoc! {
+      "
+      foo = 1
+
+      foo(println('bar'))
+      "
+    })
+    .expected_status(1)
+    .expected_stdout(Empty)
+    .expected_stderr(Contains("`foo` is not a function"))
+    .run()
+}
+
+#[test]
 fn can_override_builtin_functions() -> Result {
   Test::new()?
     .program(indoc! {
@@ -1114,19 +1140,25 @@ fn float_literals() -> Result {
 
 #[test]
 fn configured_digits() -> Result {
+  #[track_caller]
+  fn case(argument: &str) -> Result {
+    Test::new()?
+      .argument(argument)
+      .argument("4")
+      .program("println(2 / 5555222222222)")
+      .expected_status(0)
+      .expected_stdout(Exact("3.6e-13\n"))
+      .run()
+  }
+
   Test::new()?
     .program("println(2 / 5555222222222)")
     .expected_status(0)
     .expected_stdout(Exact("3.600216012960922e-13\n"))
     .run()?;
 
-  Test::new()?
-    .argument("--digits")
-    .argument("4")
-    .program("println(2 / 5555222222222)")
-    .expected_status(0)
-    .expected_stdout(Exact("3.6e-13\n"))
-    .run()
+  case("--digits")?;
+  case("-d")
 }
 
 #[test]
@@ -1246,6 +1278,29 @@ fn for_loop_with_break_and_continue() -> Result {
 }
 
 #[test]
+fn function_arity_is_checked_before_arguments() -> Result {
+  Test::new()?
+    .program(indoc! {
+      "
+      fn foo() { }
+
+      foo(println('bar'))
+      "
+    })
+    .expected_status(1)
+    .expected_stdout(Empty)
+    .expected_stderr(Contains("Function `foo` expects 0 arguments, got 1"))
+    .run()?;
+
+  Test::new()?
+    .program("abs(println('bar'), 1)")
+    .expected_status(1)
+    .expected_stdout(Empty)
+    .expected_stderr(Contains("Function `abs` expects 1 argument, got 2"))
+    .run()
+}
+
+#[test]
 fn function_call_as_argument() -> Result {
   Test::new()?
     .program(indoc! {
@@ -1352,6 +1407,37 @@ fn function_returned_closure_keeps_scope() -> Result {
 }
 
 #[test]
+fn function_values_can_be_called_from_expressions() -> Result {
+  Test::new()?
+    .program(indoc! {
+      "
+      fn make_adder(x) {
+        return fn(y) {
+          return x + y
+        }
+      }
+
+      fn apply(x, f) {
+        return f(x)
+      }
+
+      functions = [fn(x) {
+        return x * 2
+      }]
+
+      println((make_adder(2))(3))
+      println(functions[0](4))
+      println(apply(5, fn(x) {
+        return x - 1
+      }))
+      "
+    })
+    .expected_status(0)
+    .expected_stdout(Exact("5\n8\n4\n"))
+    .run()
+}
+
+#[test]
 fn function_with_local_variables() -> Result {
   Test::new()?
     .program(indoc! {
@@ -1391,10 +1477,8 @@ fn function_with_multiple_statements() -> Result {
 }
 
 #[test]
-#[ignore = "captures current unsupported zero-argument function behavior"]
 fn function_with_no_arguments() -> Result {
   Test::new()?
-    .argument("-p")
     .program(indoc! {
       "
       fn get_pi() {
@@ -1791,6 +1875,30 @@ fn if_with_while_loop() -> Result {
     })
     .expected_status(0)
     .expected_stdout(Exact("0\n1\n2\n"))
+    .run()
+}
+
+#[test]
+fn implicit_return() -> Result {
+  Test::new()?
+    .program(indoc! {
+      "
+      fn double(x) { x * 2 }
+
+      identity = fn(x) { x }
+
+      fn calculate(x) {
+        doubled = x * 2
+        doubled + 10
+      }
+
+      println(double(3))
+      println(identity('foo'))
+      println(calculate(5))
+      "
+    })
+    .expected_status(0)
+    .expected_stdout(Exact("6\nfoo\n20\n"))
     .run()
 }
 
@@ -2618,6 +2726,15 @@ fn nested_while_loops() -> Result {
 }
 
 #[test]
+fn non_function_expression_cannot_be_called() -> Result {
+  Test::new()?
+    .program("println([1][0](2))")
+    .expected_status(1)
+    .expected_stderr(Contains("'1' is not a function"))
+    .run()
+}
+
+#[test]
 fn not() -> Result {
   Test::new()?
     .program("println(!(1 > 2))")
@@ -3139,6 +3256,16 @@ fn type_conversions_list() -> Result {
     })
     .expected_status(0)
     .expected_stdout(Exact("['a', 'b', 'c']\n[123]\n[true]\n"))
+    .run()
+}
+
+#[test]
+fn undefined_callee_is_checked_before_arguments() -> Result {
+  Test::new()?
+    .program("foo(println('bar'))")
+    .expected_status(1)
+    .expected_stdout(Empty)
+    .expected_stderr(Contains("Function `foo` is not defined"))
     .run()
 }
 
